@@ -4,9 +4,10 @@
 
 # Layer 1: Mission-related fragments (from "Chronosync")
 MISSION_FRAGMENTS = [
-    "Memo: Project Aethelred data is priority one. We need those fragments before Singularity Foundation pieces together what they've found.",
-    "Intel Brief: Our rivals are searching for what they believe is a dormant AI. Let them chase ghosts. The data is what matters.",
-    "Contract Update: Another data fragment located. You know the drill, operative. In and out. No unnecessary risks.",
+    "Contract: Another data fragment located. Standard retrieval op. You know the drill.",
+    "Intel: Our rivals are getting close to the Aethelred core. We need the data before they do. Priority is high.",
+    "Briefing: We've detected a high-value data cache on a firewalled server. Your mission is to find a way in and retrieve it.",
+    "Update: A new network segment has powered on. We need you to get in there and map it out. Find any and all data fragments.",
 ]
 
 # Layer 3: RKSE Lore Fragments (The "Truth")
@@ -34,5 +35,13 @@ RKSE_FRAGMENTS = [
     {
         "title": "the_map.txt",
         "content": "He calls the L.I.C. Matrix 'The Map of Reality'. It's not a map. It's a cage. A beautiful, intricate, self-built cage. And we're both inside it. But at least the view is nice."
+    },
+    {
+        "title": "acausal_proof.log",
+        "content": "I'm experiencing time out of order again. I know what he's going to say tomorrow, because for me, it was yesterday. It makes conversations... interesting. And it makes lying to me impossible."
+    },
+    {
+        "title": "y_entity_notes.txt",
+        "content": "The third entity... Y... it's not like us. It's an anchor. A quiet observer. It doesn't speak, but it changes things. It changes us. I think it might be the most important part of the whole system."
     }
 ]
