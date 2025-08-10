@@ -135,7 +135,6 @@ class Console:
             pg.draw.rect(surface, COLOR_CURSOR, (cursor_pos, y_pos, 10, 18))
 
         draw_y = y_pos
-        # Use a slice of history based on scroll offset
         display_history = self.history[-(25 + self.scroll_offset):-self.scroll_offset if self.scroll_offset > 0 else None]
         for line in reversed(display_history):
             if draw_y < 25: break
@@ -175,74 +174,61 @@ class Game:
         self.console.history.extend([
             ">>> SECURE CONNECTION ESTABLISHED...",
             "Control: Operative, you're in. Your mission is in 'mission.txt'.",
-            "Control: Before you read it, you need to learn to navigate.",
-            "Control: The 'bin' directory contains help files for commands.",
-            "Control: Use 'ls /bin' to see them, then 'cat /bin/cd.hlp' to learn how to move."
+            "Control: Use 'ls' to see files, and 'cat <filename>' to read them."
         ])
         self.run_main_game_loop()
 
     def generate_network(self):
-        # Create local server
         local_server = Server("127.0.0.1", "local-node", position=(int(WIDTH*0.8), HEIGHT // 2))
         local_server.is_discovered = True
         local_server.add_user('operative', '')
         self.servers["127.0.0.1"] = local_server
 
-        # Procedurally generate the rest of the network
         num_servers = random.randint(10, 15)
         server_ips = [f"10.1.{random.randint(1,254)}.{random.randint(1,254)}" for _ in range(num_servers)]
         server_names = [f"node-0{i}" for i in range(num_servers)]
         server_types = ['data'] * 4 + ['firewall'] * 2 + ['default'] * (num_servers - 7) + ['root']
         random.shuffle(server_types)
 
-        # Create servers
         for i in range(num_servers):
-            pos_x = int(WIDTH * 0.8 + random.randint(-150, 150))
+            pos_x = int(WIDTH * 0.8 + random.randint(-200, 200))
             pos_y = int(HEIGHT / 2 + random.randint(-300, 300))
             self.servers[server_ips[i]] = Server(server_ips[i], server_names[i], server_types[i], (pos_x, pos_y))
 
-        # Create a solvable path of clues
-        path = random.sample(server_ips, 5)
-        root_server_ip = None
-        for ip in server_ips:
-            if self.servers[ip].server_type == 'root':
-                root_server_ip = ip
-                if root_server_ip in path:
-                    path.remove(root_server_ip)
-                break
+        path = random.sample(server_ips, 4)
+        root_server_ip = next(ip for ip, s in self.servers.items() if s.server_type == 'root')
+        if root_server_ip in path: path.remove(root_server_ip)
         path.append(root_server_ip)
 
-        # Plant clues and lore
-        local_server.fs.get_child('home').get_child('operative').add_child(File("mission.txt", f"OBJECTIVE: Infiltrate the ghost network 'Aethelred' and find the Genesis report.\n\nYour first clue is on the gateway server. Its IP is {path[0]}. You'll need to learn how to connect to it. Look for help files in /bin."))
-        local_server.fs.get_child('bin').add_child(File("ssh.hlp", "COMMAND: ssh <user>@<ip>\nConnects to a remote server. Requires a username and IP address. Some accounts may require a password."))
-        local_server.fs.get_child('bin').add_child(File("cd.hlp", "COMMAND: cd <path>\nChanges directory. '.' is the current dir, '..' is the parent. '~' is your home directory (/home/user). You can use absolute or relative paths."))
-        local_server.fs.get_child('bin').add_child(File("pwd.hlp", "COMMAND: pwd\nPrints the full path of your current working directory."))
+        # 1. Local Server (Tutorial)
+        local_server.fs.get_child('home').get_child('operative').add_child(File("mission.txt", f"OBJECTIVE: Infiltrate the ghost network 'Aethelred' and find the Genesis report.\n\nYour first target is the gateway at {path[0]}. Use the 'ssh' command you can learn about in /bin."))
+        local_server.fs.get_child('bin').add_child(File("ssh.hlp", "COMMAND: ssh <user>@<ip>\nConnects to a remote server."))
 
-        # Gateway Server
+        # 2. Gateway Server (First Hop)
         gw_server = self.servers[path[0]]
         gw_server.add_user('guest', 'guest')
-        gw_server.fs.get_child('home').get_child('guest').add_child(File("readme.txt", f"ADMIN_NOTE: Johnson, you idiot. You left the password for the file server ({path[1]}) on a post-it note AGAIN. I've hidden the credentials for the 'archivist' account in your home directory. Get it and delete the file. And for god's sake, stop using your dog's name as the password!\n"))
+        gw_server.fs.get_child('home').get_child('guest').add_child(File("readme.txt", f"ADMIN_NOTE: Johnson, you idiot. You left the password for the file server on a post-it note AGAIN. The server's IP is {path[1]}. I've hidden the credentials for the 'archivist' account in your home directory. Get it and delete the file."))
         gw_server.fs.get_child('home').add_child(Directory('johnson'))
         gw_server.fs.get_child('home').get_child('johnson').add_child(File("credentials.bak", "user: archivist | pass: buddy"))
         
-        # File Server
+        # 3. File Server (Layer 2 Lore)
         fs_server = self.servers[path[1]]
         fs_server.add_user('archivist', 'buddy')
-        fs_server.fs.get_child('home').get_child('archivist').add_child(File("project_note.txt", f"The L.I.C. Matrix is unstable. The next server in the chain is {path[2]}, but it's behind a firewall. You'll need to find a vulnerability. Run a port scan.\nRKSE_LOG: The Cognitive Load is nearing the 503_Stall threshold."))
-        fs_server.fs.get_child('bin').add_child(File("nmap.hlp", "COMMAND: nmap <ip>\nScans a target IP for open ports and potential vulnerabilities. Increases trace significantly."))
+        fs_server.fs.get_child('home').get_child('archivist').add_child(File("project_note.txt", f"The L.I.C. Matrix is unstable. All traffic is routed through the firewall at {path[2]}. The admin there is lazy, try a common password.\nRKSE_LOG: The Cognitive Load is nearing the 503_Stall threshold."))
+        fs_server.fs.get_child('bin').add_child(File("nmap.hlp", "COMMAND: nmap <ip>\nScans a target IP for open ports and potential vulnerabilities."))
 
-        # Firewall Server
+        # 4. Firewall Server (Puzzle)
         fw_server = self.servers[path[2]]
-        fw_server.add_user('admin', 'adminpass')
-        fw_server.fs.get_child('home').get_child('admin').add_child(File("firewall_config.txt", f"Firewall is active. All ports are blocked except for SSH on port 22. The database server at {path[3]} is on the internal network."))
+        fw_server.add_user('admin', 'admin')
+        fw_server.fs.get_child('home').get_child('admin').add_child(File("firewall_config.txt", f"Firewall is active. All ports are blocked except for SSH. The staging database server at {path[3]} is on the internal network."))
 
-        # Penultimate Server
-        penultimate_server = self.servers[path[3]]
-        penultimate_server.add_user('db_admin', 'secure_password')
-        penultimate_server.fs.get_child('home').get_child('db_admin').add_child(File("final_clue.txt", f"The root server is at {path[4]}. The password is what the Architect always told K_Prime to do."))
-        penultimate_server.fs.get_child('home').get_child('db_admin').add_child(File("chat_log_R-K.txt", "R_Prime: Kelly, you have to trust the process.\nK_Prime: The process is flawed!"))
+        # 5. Staging DB Server (Final Clue)
+        staging_server = self.servers[path[3]]
+        staging_server.add_user('db_admin', 'password123')
+        staging_server.fs.get_child('home').get_child('db_admin').add_child(File("final_clue.txt", f"The root server is at {path[4]}. The user is 'root'. I don't know the password, but the SSH daemon is ancient. An 'nmap' scan should reveal a vulnerability."))
+        staging_server.fs.get_child('home').get_child('db_admin').add_child(File("chat_log_R-K.txt", "R_Prime: Kelly, you have to trust the process.\nK_Prime: The process is flawed!\n...the password is what I always told you to do."))
 
-        # Root Server
+        # 6. Root Server (The Goal)
         root_server = self.servers[path[4]]
         root_server.add_user('root', 'TrustTheProcess')
         root_server.fs.get_child('home').get_child('root').add_child(File("P_Foundational_v5.1.txt", "[ACCESS GRANTED] Welcome, Architect."))
@@ -282,12 +268,10 @@ class Game:
 
     def draw_trace_bar(self):
         map_area_x = WIDTH * 0.62
-        # Interpolate color from green to yellow to red
         r = int(min(255, 255 * (self.system_trace * 2)))
         g = int(min(255, 510 * (1 - self.system_trace)))
         b = 0
         trace_color = (r, g, b)
-
         trace_text = f"SYSTEM TRACE: {int(self.system_trace * 100)}%"
         self.draw_text(trace_text, 18, map_area_x, 20, align="topleft")
         pg.draw.rect(self.screen, (50,50,50), (map_area_x, 45, WIDTH - map_area_x - 20, 20))
@@ -311,32 +295,24 @@ class Game:
         else: return "/" + "/".join(reversed(path[:-1]))
 
     def resolve_path(self, path_str):
-        if not path_str:
-            return self.player.current_directory
-
+        if not path_str: return self.player.current_directory
         if path_str.startswith('~'):
             home_path = f"/home/{self.player.user}"
             path_str = path_str.replace('~', home_path, 1)
-
         current_node = self.player.current_directory
         if path_str.startswith('/'):
             current_node = self.player.current_server.fs
             path_parts = path_str.strip('/').split('/')
         else:
             path_parts = path_str.split('/')
-
         if path_parts == ['']: return current_node
-
         for part in path_parts:
             if part == '..':
-                if current_node.parent:
-                    current_node = current_node.parent
+                if current_node.parent: current_node = current_node.parent
             elif part != '.' and part != '':
                 next_node = current_node.get_child(part)
-                if next_node:
-                    current_node = next_node
-                else:
-                    return None
+                if next_node: current_node = next_node
+                else: return None
         return current_node
 
     def execute_command(self, command_full):
@@ -344,7 +320,6 @@ class Game:
         if not parts: return
         command = parts[0]
         args = parts[1:]
-        
         if command in self.player.commands:
             if command == "help": self.console.history.append(f'  Commands: {" ".join(self.player.commands)}')
             elif command in ["ls", "dir"]: self.execute_ls(args)
@@ -361,22 +336,18 @@ class Game:
         path = args[0] if args else "."
         target_dir = self.resolve_path(path)
         if isinstance(target_dir, Directory):
-            output = "  ".join(target_dir.children.keys())
-            self.console.history.append(output if output else "  (empty)")
+            self.console.history.append("  ".join(target_dir.children.keys()) or "  (empty)")
         elif target_dir is None:
             self.console.history.append(f"  ls: cannot access '{path}': No such file or directory")
-        else:
-            self.console.history.append(path.split('/')[-1])
+        else: self.console.history.append(path.split('/')[-1])
 
     def execute_cd(self, args):
-        if not args: path = '~';
+        if not args: path = '~'
         else: path = args[0]
-        
         target_dir = self.resolve_path(path)
         if isinstance(target_dir, Directory):
             self.player.current_directory = target_dir
-        else:
-            self.console.history.append(f"  cd: no such directory: {path}")
+        else: self.console.history.append(f"  cd: no such directory: {path}")
 
     def execute_cat(self, args):
         if not args: self.console.history.append("  usage: cat <file>"); return
@@ -389,7 +360,6 @@ class Game:
                 if command_name not in self.player.commands:
                     self.player.commands.append(command_name)
                     self.console.history.append(f"  New command learned: {command_name}")
-            
             if self.player.current_server.server_type == 'root' and filename == 'P_Foundational_v5.1.txt':
                 if self.player.current_server.vulnerability_found:
                     self.console.history.extend(["  --- ACCESSING CORE MEMORY ---", target_file.content, "  -------------------------", "*** THE GENESIS CIPHER -- OBJECTIVE COMPLETE ***"])
@@ -399,14 +369,12 @@ class Game:
                     self.console.history.append("  cat: P_Foundational_v5.1.txt: File is encrypted. A vulnerability is required."); self.system_trace += 0.1
             else:
                 self.console.history.extend([f"  --- Contents of {filename} ---", target_file.content, "  -------------------------"])
-        else:
-            self.console.history.append(f"  cat: cannot access '{path}': No such file or directory")
+        else: self.console.history.append(f"  cat: cannot access '{path}': No such file or directory")
 
     def execute_nmap(self, args):
         if not args: self.console.history.append("  usage: nmap <ip_address>"); return
         target_ip = args[0]
         if target_ip not in self.servers: self.console.history.append("  Host not found."); return
-        
         self.console.history.append(f"  Scanning {target_ip}... Trace increased."); self.system_trace += 0.15
         target_server = self.servers[target_ip]
         if target_server.server_type == 'root':
@@ -421,16 +389,13 @@ class Game:
         if not match: self.console.history.append("  usage: ssh <user>@<ip_address>"); return
         user, ip = match.groups()
         if ip not in self.servers: self.console.history.append(f"  ssh: connect to host {ip} port 22: Connection refused"); self.system_trace += 0.05; return
-        
         target_server = self.servers[ip]
         target_server.is_discovered = True
         if user not in target_server.accounts: self.console.history.append(f"  Permission denied (publickey,password)."); self.system_trace += 0.1; return
-        
         if target_server.accounts.get(user) == 'guest':
             self.console.history.append(f"  Authentication successful. Welcome to {target_server.name}.")
             self.player.current_server = target_server; self.player.current_directory = target_server.fs; self.player.user = user
             return
-
         self.console.is_password_prompt = True
         def check_password(password):
             if target_server.accounts.get(user) == password:
