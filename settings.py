@@ -1,0 +1,18 @@
+# Matrix Hacker - Settings
+
+# --- CORE ---
+WIDTH, HEIGHT = 1280, 720
+FPS = 60
+TITLE = "Matrix Hacker"
+
+# --- COLORS ---
+COLOR_BACKGROUND = (0, 10, 0)
+COLOR_TEXT = (0, 255, 70)
+COLOR_GRID = (0, 80, 0)
+COLOR_CURSOR = (0, 255, 70)
+
+# --- NODE COLORS ---
+COLOR_NODE_ROOT = (255, 255, 0)
+COLOR_NODE_FIREWALL = (255, 0, 0)
+COLOR_NODE_DATA = (0, 150, 255)
+COLOR_NODE_DEFAULT = (0, 180, 70)
