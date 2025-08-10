@@ -31,13 +31,16 @@ class Game:
 
     def new_game(self):
         self.system_trace = 0.1
-        self.servers = {}
-        self.generate_network()
+        
+        # The campaign generator creates the entire game world
+        generator = CampaignGenerator(self)
+        self.servers = generator.generate_campaign(num_missions=5)
+
         self.player = Player(self.servers["127.0.0.1"])
         self.console = Console(self)
         self.console.history.extend([
             ">>> SECURE CONNECTION ESTABLISHED...",
-            "Control: Operative, you're in. Your mission is in 'mission.txt'.",
+            "Control: Operative, you're in. Your first mission brief is in 'mission_1.txt'.",
             "Control: Use 'ls' to see files, and 'cat <filename>' to read them."
         ])
         self.scanline_surface.fill((0, 0, 0, 0))
@@ -46,10 +49,7 @@ class Game:
 
         self.run_main_game_loop()
 
-    def generate_network(self):
-        """Generates the game world using the campaign generator."""
-        generator = CampaignGenerator(self)
-        self.servers = generator.generate_mission_one()
+    
 
     def run_main_game_loop(self):
         self.game_active = True

@@ -2,7 +2,7 @@
 
 **A narrative-driven, procedurally generated hacking simulation in a retro-futuristic terminal.**
 
-![Gameplay Screenshot](https://via.placeholder.com/800x400.png?text=Gameplay+Screenshot+Here)
+![Gameplay Screenshot](screenshot.png)
 *(Note: Add a gameplay screenshot or GIF here)*
 
 ---
