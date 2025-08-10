@@ -195,9 +195,9 @@ class Game:
             pos_y = int(HEIGHT / 2 + random.randint(-300, 300))
             self.servers[server_ips[i]] = Server(server_ips[i], server_names[i], server_types[i], (pos_x, pos_y))
 
-        path = random.sample(server_ips, 4)
         root_server_ip = next(ip for ip, s in self.servers.items() if s.server_type == 'root')
-        if root_server_ip in path: path.remove(root_server_ip)
+        other_server_ips = [ip for ip in server_ips if ip != root_server_ip]
+        path = random.sample(other_server_ips, 4)
         path.append(root_server_ip)
 
         # 1. Local Server (Tutorial)
