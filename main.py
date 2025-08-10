@@ -164,6 +164,8 @@ class Game:
         self.clock = pg.time.Clock()
         self.running = True
         self.font = pg.font.Font(pg.font.match_font('monospace'), 16)
+        self.grid_offset = 0
+        self.scanline_surface = pg.Surface((512, HEIGHT)).convert_alpha()
 
     def new_game(self):
         self.system_trace = 0.1
@@ -176,6 +178,10 @@ class Game:
             "Control: Operative, you're in. Your mission is in 'mission.txt'.",
             "Control: Use 'ls' to see files, and 'cat <filename>' to read them."
         ])
+        self.scanline_surface.fill((0, 0, 0, 0))
+        for y in range(0, HEIGHT, 4):
+            pg.draw.line(self.scanline_surface, (0, 0, 0, 30), (0, y), (512, y), 2)
+
         self.run_main_game_loop()
 
     def generate_network(self):
@@ -247,11 +253,25 @@ class Game:
 
     def draw(self):
         self.screen.fill(COLOR_BACKGROUND)
-        pg.draw.rect(self.screen, (0,5,0), (0, 0, WIDTH * 0.6, HEIGHT))
+        self.draw_background_grid()
         self.draw_network_map()
         self.draw_trace_bar()
         self.console.draw(self.screen)
+        self.screen.blit(self.scanline_surface, (768, 0))
         pg.display.flip()
+
+    def draw_background_grid(self):
+        map_area_x_start = WIDTH * 0.6
+        # Restore the old console background color
+        pg.draw.rect(self.screen, (0, 5, 0), (0, 0, map_area_x_start, HEIGHT))
+
+        self.grid_offset = (self.grid_offset + self.dt * 10) % 32
+        for x in range(0, int(WIDTH * 0.4) + 32, 32):
+            line_x = map_area_x_start + x - self.grid_offset
+            pg.draw.line(self.screen, COLOR_GRID, (line_x, 0), (line_x, HEIGHT))
+        for y in range(0, HEIGHT + 32, 32):
+            line_y = y - self.grid_offset
+            pg.draw.line(self.screen, COLOR_GRID, (map_area_x_start, line_y), (WIDTH, line_y))
 
     def draw_network_map(self):
         for server in self.servers.values():
@@ -268,14 +288,18 @@ class Game:
 
     def draw_trace_bar(self):
         map_area_x = WIDTH * 0.62
-        r = int(min(255, 255 * (self.system_trace * 2)))
-        g = int(min(255, 510 * (1 - self.system_trace)))
+        trace_percent_raw = self.system_trace
+        trace_percent_display = int(trace_percent_raw * 100)
+        trace_percent_clamped = max(0.0, min(1.0, trace_percent_raw))
+
+        r = int(min(255, 255 * (trace_percent_clamped * 2)))
+        g = int(min(255, 510 * (1 - trace_percent_clamped)))
         b = 0
         trace_color = (r, g, b)
-        trace_text = f"SYSTEM TRACE: {int(self.system_trace * 100)}%"
+        trace_text = f"SYSTEM TRACE: {trace_percent_display}%"
         self.draw_text(trace_text, 18, map_area_x, 20, align="topleft")
         pg.draw.rect(self.screen, (50,50,50), (map_area_x, 45, WIDTH - map_area_x - 20, 20))
-        pg.draw.rect(self.screen, trace_color, (map_area_x, 45, (WIDTH - map_area_x - 20) * self.system_trace, 20))
+        pg.draw.rect(self.screen, trace_color, (map_area_x, 45, (WIDTH - map_area_x - 20) * trace_percent_clamped, 20))
 
     def draw_text(self, text, size, x, y, align="midtop"):
         font = pg.font.Font(None, size)
