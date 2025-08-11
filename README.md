@@ -49,11 +49,9 @@ To run this project locally:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [Your Repository URL Here]
+    git clone https://github.com/electronistu/matrix_hacker.git
     cd Matrix_Hacker
     ```
-    *(Replace `[Your Repository URL Here]` with the actual URL of the repository.)*
-
 2.  **Create a virtual environment (recommended):**
     ```bash
     python3 -m venv venv
