@@ -54,8 +54,8 @@ class Console:
             self.cursor_timer = 0
             self.cursor_visible = not self.cursor_visible
 
-    def draw(self, surface):
-        console_width = WIDTH * 0.58
+    def draw(self, surface, console_width): # Added console_width parameter
+        # console_width = WIDTH * 0.58 # Removed, now passed as argument
         y_pos = HEIGHT - 30
         prompt = self.get_prompt()
         display_text = prompt + self.input_text if not self.is_password_prompt else prompt + "*" * len(self.input_text)
@@ -74,7 +74,7 @@ class Console:
             wrapped_lines = []
             current_line = ""
             for word in words:
-                if self.font.size(current_line + word)[0] < console_width:
+                if self.font.size(current_line + word)[0] < console_width: # Use passed console_width
                     current_line += word + " "
                 else:
                     wrapped_lines.append(current_line)

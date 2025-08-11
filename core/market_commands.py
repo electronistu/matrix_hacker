@@ -14,9 +14,9 @@ HARDWARE_CATALOG = {
     "trace_scrambler_v1": 5000,
 }
 
-def handle_list(game, args):
+def handle_market_list(game, args):
     if not args:
-        game.console.history.append("  usage: list <software|hardware>")
+        game.console.history.append("  usage: market list <software|hardware>")
         return
     
     category = args[0]
@@ -59,7 +59,7 @@ def handle_buy(game, args):
         game.console.history.append(f"  Unknown or already owned item: {item_name}")
 
 MARKET_COMMAND_MAP = {
-    'list': handle_list,
+    'list': handle_market_list,
     'buy': handle_buy,
     # 'exit' command will be handled by the main command handler
 }

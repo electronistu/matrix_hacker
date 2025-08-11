@@ -6,15 +6,19 @@ PROFILE_PATH = "profile.json"
 def get_default_profile():
     """Returns a new, default player profile."""
     return {
-        "commands": ["ls", "cat", "cd", "ssh"],
+        "commands": ["ls", "cat", "cd", "ssh", "ping", "grep", "find"], # Added grep and find
         "software_currency": 0,
         "hardware_currency": 0,
         "hardware_inventory": [],
         "intel": {
-            "127.0.0.1": {"desc": "Home PC"},
-            "192.168.1.10": {"desc": "Chronosync Workstation"},
-            "13.37.13.37": {"desc": "Black Market"}
-        }
+            "127.0.0.1": {"desc": "Home PC", "user": None, "pass": None, "ip_seen": True, "user_seen": False, "pass_seen": False},
+            "192.168.1.10": {"desc": "Chronosync Workstation", "user": None, "pass": None, "ip_seen": True, "user_seen": False, "pass_seen": False},
+            "13.37.13.37": {"desc": "Black Market", "user": None, "pass": None, "ip_seen": True, "user_seen": False, "pass_seen": False}
+        },
+        "jobs_completed": {},
+        "active_quests": {},
+        "completed_quests": {},
+        "street_cred": 0 # New currency
     }
 
 def load_profile():
@@ -43,7 +47,11 @@ def save_profile(player):
         "software_currency": player.software_currency,
         "hardware_currency": player.hardware_currency,
         "hardware_inventory": player.hardware_inventory,
-        "intel": player.intel
+        "intel": player.intel,
+        "jobs_completed": player.jobs_completed,
+        "active_quests": player.active_quests,
+        "completed_quests": player.completed_quests,
+        "street_cred": player.street_cred # Save street cred
     }
     with open(PROFILE_PATH, 'w') as f:
         json.dump(profile_data, f, indent=4)
