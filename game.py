@@ -58,8 +58,7 @@ class Game:
         home_quest = generate_dynamic_quest(
             game_instance=self,
             player_street_cred=self.player.street_cred,
-            player_commands=self.player.commands,
-            quest_category="home_missions"
+            player_commands=self.player.commands
         )
         if home_quest:
             QUESTS[home_quest["id"]] = home_quest
@@ -68,8 +67,7 @@ class Game:
         work_quest = generate_dynamic_quest(
             game_instance=self,
             player_street_cred=self.player.street_cred,
-            player_commands=self.player.commands,
-            quest_category="work_missions"
+            player_commands=self.player.commands
         )
         if work_quest:
             QUESTS[work_quest["id"]] = work_quest
@@ -103,8 +101,7 @@ class Game:
         black_market_quest = generate_dynamic_quest(
             game_instance=self,
             player_street_cred=self.player.street_cred,
-            player_commands=self.player.commands,
-            quest_category="blackmarket_missions"
+            player_commands=self.player.commands
         )
         if black_market_quest:
             QUESTS[black_market_quest["id"]] = black_market_quest

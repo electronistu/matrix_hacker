@@ -10,9 +10,16 @@ def handle_deliver(game, args):
 
     delivered_item = " ".join(args) # Join all arguments to form the delivered item
     
+    game.console.history.append(f"  [DEBUG] Delivered item: '{delivered_item}'")
+    game.console.history.append(f"  [DEBUG] Current server: '{game.player.current_server.name}'")
+
     # Iterate through active quests to find a matching delivery
     quest_completed = False
     for quest_id, quest_data in list(game.player.active_quests.items()): # Use list() to allow modification during iteration
+        game.console.history.append(f"  [DEBUG] Checking quest: '{quest_id}'")
+        game.console.history.append(f"  [DEBUG] Quest objective_type: '{quest_data['objective_type']}'")
+        game.console.history.append(f"  [DEBUG] Quest delivery_location: '{quest_data['delivery_location']}'")
+        game.console.history.append(f"  [DEBUG] Quest objective_target: '{quest_data['objective_target']}'")
         if quest_data["objective_type"] == "deliver_item":
             # Check if delivery location matches current server/directory
             delivery_match = False
@@ -77,20 +84,42 @@ def handle_list_quests(game, args):
                 if quest_category == current_server_category:
                     # Check Street Cred requirement
                     required_cred = quest_data.get("street_cred_required", 0)
+                    
+                    # Always display the quest
+                    game.console.history.append("------------------------------------")
+                    game.console.history.append(f"[ID: {quest_id}] {quest_data['title']}")
+                    game.console.history.append(f"  Description: {quest_data['description']}")
+                    game.console.history.append(f"  Reward: {quest_data['reward_amount']} {quest_data['reward_type']}")
+                    
                     if game.player.street_cred >= required_cred:
-                        game.console.history.append(f"  [{quest_id}] {quest_data['title']}")
-                        game.console.history.append(f"    Description: {quest_data['description']}")
-                        game.console.history.append(f"    Reward: {quest_data['reward_amount']} {quest_data['reward_type']}")
-                        game.console.history.append(f"    Requires: {required_cred} SC")
-                        found_available = True
-    if not found_available:
+                        game.console.history.append(f"  Status: Available")
+                    else:
+                        game.console.history.append(f"  Status: Locked (Requires: {required_cred} Street Cred)")
+                    
+                    # Display required commands
+                    required_cmds = quest_data.get("required_commands", [])
+                    if required_cmds:
+                        missing_cmds = [cmd for cmd in required_cmds if cmd not in game.player.commands]
+                        if missing_cmds:
+                            game.console.history.append(f"  Missing Commands: {', '.join(missing_cmds)}")
+                        else:
+                            game.console.history.append(f"  Required Commands: {', '.join(required_cmds)} (All available)")
+                    
+                    found_available = True # This should be true if we display it
+        if not found_available:
+            game.console.history.append("  No new quests available at this time.")
+    else: # If current_server_category is None (e.g., not a quest-hosting server)
         game.console.history.append("  No new quests available at this time.")
+
     game.console.history.append("--- Active Quests ---")
     if game.player.active_quests:
         for quest_id, quest_data in game.player.active_quests.items():
-            game.console.history.append(f"  [{quest_id}] {quest_data['title']} (Active)")
-            game.console.history.append(f"    Description: {quest_data['description']}") # Display description instead of objective
-            game.console.history.append(f"    Deliver to: {quest_data['delivery_location']}")
+            game.console.history.append("------------------------------------")
+            game.console.history.append(f"[ID: {quest_id}] {quest_data['title']}")
+            game.console.history.append(f"  Status: Active")
+            game.console.history.append(f"  Description: {quest_data['description']}")
+            game.console.history.append(f"  Deliver to: {quest_data['delivery_location']}")
+        game.console.history.append("------------------------------------") # Add closing separator
     else:
         game.console.history.append("  No active quests.")
 
@@ -153,6 +182,7 @@ def handle_ping(game, args):
     
     game.console.history.append(f"  Pinging {target_ip}...")
     game.add_trace(0.1) # Small trace increase for ping
+    game.console.history.append(f"  Reply from {target_ip}: bytes=32 time=10ms TTL=64")
 
     # --- Quest Progress Tracking (new) ---
     for quest_id, quest_data in list(game.player.active_quests.items()):

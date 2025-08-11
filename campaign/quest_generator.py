@@ -3,24 +3,30 @@ from campaign.quests import QUEST_TEMPLATES, COMMAND_TIERS, QUESTS # Import QUES
 from core.filesystem import File, Directory
 from core.network import Server
 
-def generate_dynamic_quest(game_instance, player_street_cred, player_commands, quest_category=None, last_quest_id=None):
+def generate_dynamic_quest(game_instance, player_street_cred, player_commands, last_quest_id=None):
     """
     Generates a dynamic quest based on player's street cred and learned commands.
     """
     available_templates = []
     
-    # Filter templates based on street cred and required commands
+    eligible_categories = []
+    if player_street_cred < 20: # Example threshold for easy quests
+        eligible_categories.append("home_missions")
+    if player_street_cred >= 15: # Example threshold for medium quests
+        eligible_categories.append("work_missions")
+    if player_street_cred >= 40: # Example threshold for hard quests
+        eligible_categories.append("blackmarket_missions")
+
+    # Filter templates based on street cred, required commands, and eligible categories
     for template_id, template_data in QUEST_TEMPLATES.items():
         if template_data.get("street_cred_required", 0) <= player_street_cred:
-            # Check if player knows all required commands
             commands_met = True
             for cmd in template_data.get("required_commands", []):
                 if cmd not in player_commands:
                     commands_met = False
                     break
             if commands_met:
-                # Filter by category if specified
-                if quest_category is None or template_data.get("available_at_category") == quest_category:
+                if template_data.get("available_at_category") in eligible_categories:
                     available_templates.append(template_id)
 
     
@@ -38,26 +44,22 @@ def generate_dynamic_quest(game_instance, player_street_cred, player_commands, q
                 if temp_available_templates:
                     available_templates = temp_available_templates
 
-    # Special prioritization for the initial home mission
-    if quest_category == "home_missions" and "easy_ping_template" in available_templates:
-        chosen_template_id = "easy_ping_template"
-    else:
-        # If there are still multiple available templates, try to pick a more interesting one
-        if len(available_templates) > 1:
-            # Prioritize quests that require commands from higher tiers that the player has
-            prioritized_templates = []
-            for tier_name in ["hard", "medium", "easy"]: # Iterate from hard to easy
-                for cmd in COMMAND_TIERS.get(tier_name, []):
-                    if cmd in player_commands:
-                        for template_id in available_templates:
-                            template_data = QUEST_TEMPLATES[template_id]
-                            if cmd in template_data.get("required_commands", []) and template_id not in prioritized_templates:
-                                prioritized_templates.append(template_id)
+    # If there are still multiple available templates, try to pick a more interesting one
+    if len(available_templates) > 1:
+        # Prioritize quests that require commands from higher tiers that the player has
+        prioritized_templates = []
+        for tier_name in ["hard", "medium", "easy"]: # Iterate from hard to easy
+            for cmd in COMMAND_TIERS.get(tier_name, []):
+                if cmd in player_commands:
+                    for template_id in available_templates:
+                        template_data = QUEST_TEMPLATES[template_id]
+                        if cmd in template_data.get("required_commands", []) and template_id not in prioritized_templates:
+                            prioritized_templates.append(template_id)
             
             if prioritized_templates:
                 available_templates = prioritized_templates
         
-        chosen_template_id = random.choice(available_templates)
+    chosen_template_id = random.choice(available_templates)
     chosen_template = QUEST_TEMPLATES[chosen_template_id]
 
     # Instantiate the quest from the template
@@ -148,6 +150,560 @@ def generate_dynamic_quest(game_instance, player_street_cred, player_commands, q
             game_instance.servers[target_ip] = exfil_server
             generated_ips.append(target_ip)
             new_quest["delivery_location"] = "black-market" # Deliver to black market
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_hidden_file":
+            # For easy_explore_dir_template
+            target_directory_name = random.choice(["temp", "logs", "data", "archive"])
+            hidden_file_name = f".{random.choice(['config', 'cache', 'secret'])}.{random.randint(100, 999)}.txt"
+            
+            # Create the target directory and hidden file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            target_directory = Directory(target_directory_name)
+            home_operative_dir.add_child(target_directory)
+            target_directory.add_child(File(hidden_file_name, f"Hidden content for {hidden_file_name}."))
+            
+            new_quest["objective_target"] = hidden_file_name # The name of the hidden file is the objective
+            new_quest["description"] = new_quest["description"].format(target_directory=target_directory_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_file_content":
+            # For easy_find_file_home_template
+            target_file_name = random.choice(["notes.txt", "todo.txt", "important.log"])
+            file_content = f"This is the content of {target_file_name}. The secret is: {random.choice(['alpha', 'beta', 'gamma'])}."
+            
+            # Create the file on the home PC
+            home_operative_dir = game_instance.servers["127.0.0.1"].fs.get_child('home').get_child('operative')
+            home_operative_dir.add_child(File(target_file_name, file_content))
+            
+            new_quest["objective_target"] = file_content # Deliver the content
+            new_quest["description"] = new_quest["description"].format(target_file=target_file_name)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_device_name":
+            # For medium_ssh_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            device_name = random.choice(["router", "printer", "nas", "camera"])
+            
+            # Create a simple server for the device
+            device_server = game_instance.campaign_generator._create_server(target_ip, device_name, server_type="device")
+            device_server.add_user("admin", "password") # Simple credentials
+            game_instance.servers[target_ip] = device_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = device_name # Deliver the device name
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_log_entry":
+            # For medium_grep_home_template
+            target_ip = f"10.0.0.{random.randint(2, 254)}" # Local network IP
+            log_file = "/var/log/system.log"
+            keyword = random.choice(["ERROR", "WARNING", "CRITICAL"])
+            log_entry = f"[{keyword}] User 'guest' failed login from {random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}.{random.randint(1, 254)}."
+            
+            # Create a server with the log file
+            log_server = game_instance.campaign_generator._create_server(target_ip, "log-server", server_type="log")
+            log_server.add_user("user", "pass")
+            log_server.fs.get_child('var').add_child(Directory('log'))
+            log_server.fs.get_child('var').get_child('log').add_child(File("system.log", log_entry))
+            game_instance.servers[target_ip] = log_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = log_entry # Deliver the log entry
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip, keyword=keyword)
+            new_quest["delivery_location"] = "home-pc" # Deliver to home-pc
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_port_number":
+            # For medium_portscan_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            open_port = random.choice([21, 23, 80, 443, 8080])
+            
+            # Create a server with the open port info
+            port_server = game_instance.campaign_generator._create_server(target_ip, "work-device", server_type="work_device")
+            port_server.fs.add_child(File(".ports", f"Open ports: {open_port}, 22, 23"))
+            game_instance.servers[target_ip] = port_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = str(open_port) # Deliver the port number as string
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
+
+        elif new_quest.get("objective_target_placeholder") == "dynamic_captured_data":
+            # For hard_tcpdump_work_template
+            target_ip = f"192.168.1.{random.randint(11, 254)}" # Work network IP
+            captured_data = f"Sensitive data: {random.choice(['financial_report', 'project_x_specs', 'employee_records'])} - {random.randint(1000, 9999)}"
+            
+            # Create a server with the captured data
+            capture_server = game_instance.campaign_generator._create_server(target_ip, "work-hub", server_type="work_hub")
+            capture_server.fs.add_child(File(".tcp_capture", f"Packet capture: {captured_data}"))
+            game_instance.servers[target_ip] = capture_server
+            generated_ips.append(target_ip)
+            
+            new_quest["objective_target"] = captured_data # Deliver the captured data
+            new_quest["description"] = new_quest["description"].format(target_ip=target_ip)
+            new_quest["delivery_location"] = "work-serv/jobs" # Deliver to work server jobs
 
     # Add generated IPs to game.player.quest_ips
     game_instance.player.quest_ips[quest_id] = generated_ips

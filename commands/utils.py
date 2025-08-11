@@ -83,7 +83,7 @@ def _generate_and_add_new_quest(game, completed_quest_id):
     )
 
     if new_quest:
-        game.console.history.append(f"  [+] New quest '{new_quest['title']}' generated!")
+        pass
         # Add a file to the appropriate jobs directory to notify the player
         jobs_dir_path = None
         if quest_category == "home_missions":

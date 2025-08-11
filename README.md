@@ -1,45 +1,58 @@
-# Matrix Hacker
+# Matrix Hacker: A Command-Line Cyber-Simulation
 
-A text-based hacking simulation game where players navigate a digital world, execute commands, and complete quests to uncover a deeper narrative.
+## Project Overview
 
-## Description
+Matrix Hacker is a Python-based, text-driven cyber-simulation game designed to immerse players in a command-line interface (CLI) environment, challenging them with network navigation, data retrieval, and strategic problem-solving. Developed with a strong emphasis on modularity, scalability, and maintainability, this project serves as a robust demonstration of software engineering principles applied to interactive game development.
 
-Dive into the role of an operative in a cyberpunk-inspired world. Interact with servers, explore file systems, and engage in network operations through a command-line interface. Unravel a mysterious story by completing dynamically generated quests, earning currency, and upgrading your hacking toolkit. Be mindful of your system trace, as too much activity can lead to detection!
+## Key Features & Technical Highlights
 
-## Features
+*   **Dynamic Quest Generation System:**
+    *   Implemented a sophisticated, template-driven quest engine capable of generating diverse missions across multiple difficulty tiers (Easy, Medium, Hard).
+    *   Quests are dynamically tailored to player progression, available commands, and current "street cred," ensuring a personalized and challenging experience.
+    *   Features intelligent quest selection algorithms that prioritize new command introduction, avoid repetition, and guide players through a progressive learning curve.
+    *   Dynamically provisions in-game network assets (servers, files, directories) on remote IPs based on quest requirements, enhancing realism and replayability.
+*   **Modular Network Simulation:**
+    *   Designed an extensible in-game network layer with abstract `Server`, `File`, and `Directory` classes.
+    *   Simulates core networking protocols (`ping`, `ssh`, `nmap`, ``portscan`, `grep`, `find`, `tcpdump`) allowing for realistic command-line interaction and extensible future development.
+*   **Command-Line Interface (CLI) Engine:**
+    *   Developed a responsive and intuitive text-based interface, providing a core interaction loop for command input and output.
+    *   Features a comprehensive help system, dynamic command availability, and robust input parsing.
+*   **Game State Management & Persistence:**
+    *   Implemented a clear separation of game state logic, ensuring maintainability and enabling future features like persistent save/load functionality.
+*   **Scalability & Maintainability Focus:**
+    *   Architected the project with clear separation of concerns (e.g., UI, core game logic, quest generation, network simulation) to facilitate independent development and future expansion.
+    *   Utilized data-driven design patterns (e.g., `QUEST_TEMPLATES`) to allow for easy addition of new content without code modification.
 
-*   **Immersive CLI Experience:** Interact with the game world using familiar terminal commands (`ls`, `cat`, `cd`, `ssh`, `ping`, `grep`, `find`, `nmap`, `tcpdump`, `portscan`).
-*   **Dynamic Quest System:** Undertake missions that adapt to your progress, street cred, and available commands. Discover objectives by exploring server files and intel.
-*   **In-Game Economy:** Earn "Creds" and "Chips" to purchase new software (commands) and hardware upgrades from the black market.
-*   **Network Exploration:** Traverse a simulated network of interconnected servers, each with its own file system, users, and secrets.
-*   **Intel Panel:** A dedicated HUD displays crucial information, including known IPs, credentials, and mission-critical data.
-*   **System Trace Mechanic:** Every action carries a risk. Manage your system trace to avoid detection and game over.
-*   **Rich Lore:** Uncover fragments of a compelling narrative hidden within the network.
+## My Contributions
 
-## How to Play
+As the primary developer for this project overhaul, my responsibilities and contributions included:
 
-1.  **Start the Game:** Run `main.py`.
-2.  **Main Menu:** Choose to start a new game or load a previous save.
-3.  **Terminal Interaction:**
-    *   Type commands into the console at the bottom of the screen.
-    *   Use `help` to see a list of available commands or `help <command>` for specific command details.
-    *   Use `list quests` to view available and active missions.
-    *   Use `accept <quest_id>` to begin a quest.
-    *   Follow quest descriptions to find objectives. For "deliver" quests, you'll often need to find a specific keyword or item within a file and then use `deliver <keyword_or_item>`.
-    *   Navigate directories with `ls` and `cd`.
-    *   View file contents with `cat`.
-    *   Connect to remote servers with `ssh <user>@<ip>`.
-    *   Monitor your "SYSTEM TRACE" on the right panel. If it reaches 100%, it's game over.
-4.  **Market:** Visit the black market server (`ssh market@13.37.13.37`) to `list` and `buy` new software and hardware.
+*   **Architectural Redesign:** Led the complete re-architecture of the game's core systems, transitioning from a monolithic structure to a modular, layered design.
+*   **Quest System Development:** Designed and implemented the entire dynamic quest generation pipeline, including:
+    *   Defining new, comprehensive quest templates with tiered difficulty and explicit command requirements.
+    *   Developing the intelligent quest selection algorithm to ensure progressive challenge and command utilization.
+    *   Implementing the dynamic creation and placement of quest-specific network targets (remote servers, files, hidden data).
+    *   Refining quest objective clarity and in-game guidance.
+*   **Core Game Logic Refinement:** Enhanced existing game mechanics, suchs as the intel panel, command handling, and player progression, to integrate seamlessly with the new quest system.
+*   **Debugging & Quality Assurance:** Systematically identified and resolved complex bugs, including critical `IndentationError` and `NameError` issues, demonstrating strong debugging and problem-solving skills.
+*   **Code Quality & Documentation:** Ensured adherence to Python best practices, improved code readability, and updated project documentation (`requirements.txt`, `README.md`) to reflect the project's advanced state.
 
-## Installation
+## Technical Stack
+
+*   **Language:** Python 3.x
+*   **Game Library:** Pygame (for rendering and event handling)
+*   **Core Concepts:** Object-Oriented Programming (OOP), Event-Driven Architecture, Data-Driven Design, CLI Development, Network Simulation.
+
+## Installation & Setup
+
+To run this project locally:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-repo/Matrix_Hacker.git
+    git clone [Your Repository URL Here]
     cd Matrix_Hacker
     ```
-    *(Note: Replace `https://github.com/your-repo/Matrix_Hacker.git` with the actual repository URL if available.)*
+    *(Replace `[Your Repository URL Here]` with the actual URL of the repository.)*
 
 2.  **Create a virtual environment (recommended):**
     ```bash
@@ -66,7 +79,8 @@ Dive into the role of an operative in a cyberpunk-inspired world. Interact with 
     python main.py
     ```
 
-## Credits
+## Future Enhancements
 
-*   **Developer:** [Radu Tataru-Marinescu]
-*   **Inspired by:** Classic hacking games and cyberpunk themes.
+*   Implementation of a persistent save/load system for game progress.
+*   Expansion of network types and vulnerabilities.
+*   Development of a more complex narrative branching system.
